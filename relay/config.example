@@ -2,6 +2,7 @@
   "developer": "Codex",
   "auditor": "claude",
   "model": "opus",
+  "codex_model": "",
   "timeout_seconds": 600,
   "max_rounds": 3,
   "runtime": "isolated"
