@@ -8,7 +8,7 @@
 - 監査役（エージェント・モデル）と日時：
 - 読了位置（最後まで読んだコミット。合格は意味しない）：
 - 合格位置（判定が「問題なし」で、高・中の指摘がすべて閉じている最後のコミット）：
-- 監査した未 commit の変更の識別値（追跡外の新規ファイルを含む。例：`{ git --no-optional-locks diff HEAD --binary; git ls-files --others --exclude-standard -z | xargs -0 shasum; } | shasum`）：
+- 監査した未 commit の変更の識別値（追跡外の新規ファイルを含む。例：`{ git --no-optional-locks diff HEAD --binary; git --no-optional-locks ls-files --others --exclude-standard -z | xargs -0 shasum; } | shasum`）：
 - 今回監査した範囲：
 - 判定：問題なし／直してから次へ／要ユーザー判断
 
