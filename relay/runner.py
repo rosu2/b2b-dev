@@ -18,6 +18,10 @@ BEGIN = 'B2B_AUDIT_BEGIN'
 END = 'B2B_AUDIT_END'
 
 
+class UserDecision(RuntimeError):
+    pass
+
+
 def git(*args):
     return subprocess.check_output(['git', '--no-optional-locks', *args], cwd=ROOT).decode()
 
@@ -84,6 +88,8 @@ def run_child(cmd, prompt, timeout, env):
     try:
         out, err = child.communicate(prompt, timeout=timeout)
         if child.returncode:
+            if 'not logged in' in (out + err).lower():
+                raise UserDecision('隔離したClaude runtimeで認証が必要。外部設定は変更せずユーザー判断で停止。')
             # Do not expose stderr that could include credentials or private settings.
             raise RuntimeError('CLI失敗: exit=' + str(child.returncode))
         return out
@@ -239,6 +245,10 @@ def main():
         (STATE / 'audit.next').write_text(body)
         os.replace(STATE / 'audit.next', ROOT / 'AUDIT.md')
         print(verdict)
+        return code
+    except UserDecision as error:
+        print(str(error))
+        code, verdict = 20, '要ユーザー判断（Claudeの認証が必要）'
         return code
     except Exception as error:
         print(type(error).__name__ + ': ' + str(error))
