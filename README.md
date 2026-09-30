@@ -1,88 +1,131 @@
-# foreman-handoff
+# B2B — Back-to-Back Development
 
-**コーディングエージェント同士で「現場監督」を交代するためのスキル。**
-Claude Code、Codex などの間で、作業の目的・検証済みの状態・権限を保ったまま、主任の役割を渡します。
+**2つのコーディングエージェントが「開発」と「監査」の席を交代しながら進める開発方式のスキルです。**（スキル名：`b2b-dev`）
 
-使う場面の例：
+B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出しているあいだ、もう片方はヘッドホンで聴いて次に備えます。
 
-- Claude の利用枠が尽きかけているが、開発を止めたくない。残りは Codex の枠で続けたい（逆方向も可）。
-- コンテキストが限界に近いので、新しいセッションに作業を引き継ぎたい。
-- 難しい部分だけを、別の強いモデルに調べさせたい。
+```text
+ 開発役 (on air) ──コミット──▶ 監査役 (cue)
+   │  HANDOFF.md                  │  AUDIT.md
+   └──── 枠が危なくなったら席を交代 ────┘
+```
 
-## 何をしてくれるか
+## 解決すること
 
-- **前任**が、正本の進捗記録と現物を照らし合わせた引き継ぎ書（`HANDOFF.md`）を作ります。
-- 残りがわずかなときは、**緊急最小版の5点**だけを先に保存します。書き込みは1回で済むので、減りかけている側の枠をほとんど使いません。
-- **後任**は、照らし合わせていない項目を最初に確かめ、前任が止まっていることを確認してから作業を続けます。
-- 必要なときだけ、決まった書式の依頼文で**難所担当**へ委託できます。
+- **利用枠が尽きる問題：** 開発役（例：Claude Code）の枠が危なくなったら、監査役（例：Codex）が開発を引き継ぎます。元の開発役は、枠が戻ってから監査の席に着きます。二つの会社の枠を交互に使えます。
+- **記憶が消える問題：** 記憶は、モデルの頭の中ではなく、作業フォルダの2つの書類に残します。
+  - `HANDOFF.md`（開発役）：意図、捨てた案、最後の検証済み状態、次の一手
+  - `AUDIT.md`（監査役）：どこまで監査したか、指摘、判定
 
-交代でかかる重い作業（読み込み・照合・続行）は、後任の枠で行います。
+  どちらのモデルが、どちらの席に、いつ座っても、同じところから再開できます。
+- **交代の費用：** 監査役は差分をすでに読んでいるので、引き継ぎで一から読み直す必要がありません。
+
+## 仕組み
+
+1. 開発役がコミットするたびに、監査役が「読了位置」から HEAD まで（未 commit の変更と、追跡外の新規ファイルを含む）を、読み取りだけで監査します。「問題なし」と判定され、重大な指摘がすべて閉じている（ユーザーの判断待ちは閉じていない扱い）最後のコミットが「合格位置」になります。
+2. 合格位置より後の変更（監査待ち）は、ユーザーの明示の指示がない限り、merge・push・deploy しません。
+3. 交代の合図（ユーザーの指示、事前に決めた目安、上限の警告、コンテキストの限界）が出たら、開発役は `HANDOFF.md` の冒頭に最小限を保存して、書き込みを止めます。
+4. 監査役は、途中の監査を書き出し、まだ監査していない変更を監査します。そのあと開発を受け入れ、開発役として、重大な指摘を最初に直します。
+5. 元の開発役は、枠が戻ったら監査役として戻ります。そのあいだに入ったコミットは、監査待ちのまま待ちます。
 
 ## しないこと
 
-- モデルやエージェントの起動・切り替え、使用量の監視、エージェント間の自動送信はしません。後任への合図は、ユーザーが開始文を貼って出します。
-- commit・push・本番操作などの権限は増やしません。
-- 実行スクリプトや、ネットワーク通信を含みません。中身は Markdown だけです。
+- スキル本体はモデルの起動・切り替え、使用量の監視、自動送信を行いません。任意の relay は、ユーザーの許可で CLI 監査を呼び出します。席の交代はユーザーが開始文を貼って行います。
+- commit・push・本番操作などの権限を増やしません。
+- スキル本体は Markdown だけです。[relay](relay/README.md) は、ユーザーが許可した CLI 監査を呼び出す任意の道具です。
 
 ## 構成
 
 ```text
-foreman-handoff/
+b2b-dev/
 ├── SKILL.md                  # 手順（エージェントが読む）
 ├── templates/
-│   ├── handoff.md            # 引き継ぎ書の雛形（緊急最小版つき）
-│   └── start-prompts.md      # 前任・後任への開始文の雛形
+│   ├── handoff.md            # HANDOFF.md の雛形
+│   ├── audit.md              # AUDIT.md の雛形
+│   └── start-prompts.md      # 開発・監査・交代の開始文
+├── relay/                    # 任意の CLI 監査の通路
+├── .gitignore                # .b2b/ の状態を公開しない
 ├── README.md
 └── LICENSE
 ```
 
 ## 導入
 
-インストールしなくても使えます。
+インストールしなくても使えます。エージェントにこう伝えてください。
 
 ```text
-<このフォルダ>/SKILL.md を読み、その手順で引き継ぎを準備してください。
+<このフォルダ>/SKILL.md を読み、b2b-dev の <開発役／監査役> として作業してください。
 ```
 
-常に使う場合は、フォルダごと各ツールのスキル置き場にコピーします。
+### ローカルで導入する（Claude Code・Codex）
 
-| ツール | ユーザー単位の配置例 |
-| --- | --- |
-| Claude Code | `~/.claude/skills/foreman-handoff/` |
-| Codex | `~/.agents/skills/foreman-handoff/` |
+`SKILL.md` を唯一の手順本文として、両ツールからこのリポジトリへ直接リンクします。コピーや製品名の置換はしません。導入はユーザーが行います。
 
-- すでに同じ名前のフォルダがあれば、上書きせずに差分を確かめてください。
-- 認識のされ方は、ツールのバージョンによって変わります。公式の資料：[Claude Code Skills](https://code.claude.com/docs/en/skills)、[Codex Skills](https://learn.chatgpt.com/docs/build-skills)
-- **注意：** スキル置き場を別のツールと同期するスクリプトなどを使っている場合、同期のときにファイル内の製品名が書き換えられることがあります（例：「Claude」→「Codex」）。導入後に、`SKILL.md` が原本と同じかを確かめてください。
+| ツール | ユーザー単位のリンク | 呼び出し |
+| --- | --- | --- |
+| Claude Code | `~/.claude/skills/b2b-dev` → このリポジトリ | `/b2b-dev` |
+| Codex | `~/.agents/skills/b2b-dev` → このリポジトリ | `$b2b-dev`（CLI・IDE では `/skills` からも選択可） |
 
-## 使い方（Claude Code → Codex の例）
+両ツールの公式資料で、上記の配置場所とリンクされたスキルフォルダの読み込みを確認しています。[Claude Code Skills](https://code.claude.com/docs/en/skills)、[OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills)（2026-10-01 確認）。Claude のこの配置はローカルの Claude Code 用です。
 
-1. **ふだんから：** 長い作業では、検証の区切りごとに `HANDOFF.md` の「最後の検証済み状態」と「次の一手」が更新されます（スキルの「常時更新」）。
-2. **枠が尽きかけたら：** Claude Code に、[緊急用の開始文](templates/start-prompts.md#前任へ緊急残りわずか)を貼ります。5点が保存され、Claude Code は書き込みを止めます。
-3. **Codex を起動して：** [後任用の開始文](templates/start-prompts.md#後任へ受け入れて続行)を貼ります。Codex が引き継ぎ書と現物を照らし合わせ、`ACCEPTED` にしてから続けます。
-4. **枠が回復したら：** 自動では戻りません。戻すときは、[戻し用の開始文](templates/start-prompts.md#元の主任へ戻し)で Claude Code に受け入れ直させます。
+**同期処理がある場合：** 導入前に `b2b-dev` を、両方のスキル置き場をコピー・置換する処理の対象から外してください。両リンクは独立して原本を指すようにします。リンクだけでは、未知の同期処理によるリンクの置換や、リンク先の本文の書き換えを防げません。除外できたか不明なら、上の「インストールしなくても使う」方法で原本の `SKILL.md` を直接指定してください。同期処理の特定や設定変更は、このスキルの機能に含みません。
 
-## 状態
+リポジトリは恒久的な場所に置いてから導入してください。移動・改名したら、両リンクを新しい絶対パスへ張り直します。既存リンクの削除・張り直しは、リンク先を確認してユーザーが行ってください。以下の導入例は既存リンクを自動修復しません。
 
-| 状態 | 意味 |
-| --- | --- |
-| `PREPARED（緊急・未照合）` | 最小限だけ保存した。後任が最初に照らし合わせる必要がある。 |
-| `PREPARED` | 前任が準備を終えた。後任の受け入れはまだ。 |
-| `ACCEPTED` | 後任が現在の状態と担当範囲を確認し、作業を引き受けた。 |
+次は macOS・Linux のシェルでユーザーが実行する導入例です。先にこのリポジトリのルートへ移動してください。既存の同名フォルダやリンク（リンク切れを含む）があれば、上書きせずに停止します。
 
-## 試運転で確かめたこと
+```sh
+b2b_repo="$(pwd -P)"
+if [ ! -f "$b2b_repo/SKILL.md" ]; then
+  echo "このリポジトリのルートで実行してください。"
+elif [ -e "$HOME/.claude/skills/b2b-dev" ] || [ -L "$HOME/.claude/skills/b2b-dev" ] ||
+     [ -e "$HOME/.agents/skills/b2b-dev" ] || [ -L "$HOME/.agents/skills/b2b-dev" ]; then
+  echo "同名の配置があります。リンク先と内容を確認してから導入してください。"
+else
+  mkdir -p "$HOME/.claude/skills" "$HOME/.agents/skills" &&
+  ln -s "$b2b_repo" "$HOME/.claude/skills/b2b-dev" &&
+  ln -s "$b2b_repo" "$HOME/.agents/skills/b2b-dev"
+fi
+```
 
-作者の環境で、「残りわずか」を想定して試運転しました。
+導入後や同期処理が動いた後は、同じリポジトリのルートで確認します。`test -f` が終了コード0なら本文へ到達でき、リンク切れでは失敗します。`readlink` の出力が両方とも原本の絶対パスかを確認してください。`cmp` はコピーに置き換わった場合の本文の違いを検出します。正常なリンクなら同じファイル同士の比較になるので、原本そのものの改変は検出しません。コピーへの置換自体は `readlink` の失敗で検出します。
 
-- 前任が緊急版を1回書き込んだだけで、前任の会話を知らない後任が、引き継ぎ書だけから作業を再開できました。
-- 後任が「未照合」の項目を照らし合わせたことで、進捗記録と現物の食い違いが見つかりました。
-- 読み取り専用で委託したにもかかわらず、担当者の `git diff` が索引ファイルを更新していました。これを受けて、`--no-optional-locks` を付けることと、受け入れ時に更新時刻を確かめることを手順に加えています。
+```sh
+test -f "$HOME/.claude/skills/b2b-dev/SKILL.md"
+test -f "$HOME/.agents/skills/b2b-dev/SKILL.md"
+readlink "$HOME/.claude/skills/b2b-dev"
+readlink "$HOME/.agents/skills/b2b-dev"
+cmp SKILL.md "$HOME/.claude/skills/b2b-dev/SKILL.md"
+cmp SKILL.md "$HOME/.agents/skills/b2b-dev/SKILL.md"
+git --no-optional-locks status --short
+```
 
-実際に別の CLI を起動して配送する部分は、このパッケージでは保証しません。初めて使うときは、`PREPARED` と `ACCEPTED` が区別されること、未 commit の変更と権限が保たれることを確かめてください。
+最後の状態確認は、原本・templates・追跡外ファイルを含むリポジトリ全体の変更を見るためです。意図しない変更があれば、その状態で使わず、原本と同期設定を確認してください。
+
+### 呼び出す
+
+作業対象のプロジェクトを開き、Claude Code では `/b2b-dev`、Codex では `$b2b-dev` に、席・目的・完成条件・branch を添えて呼び出します。具体的な入力文は [templates/start-prompts.md](templates/start-prompts.md) を使ってください。Codex の画面で選択方法が異なる場合は、スキル一覧から選ぶか、原本の `SKILL.md` の絶対パスを指定して読み込ませます。
+
+新しいセッションでスキルが見えることを確認してください。Codex は変更を自動検出しますが、現れなければ再起動します。同じ名前のコピーがほかにもある場合は、どの原本を読んだかを確認します。リンクと本文の一致は、実際の呼び出し成功とは別の確認です。
+
+### Codex 用ファイルの判断
+
+Codex の必須ファイルは、`name`・`description` を持つ `SKILL.md` です。既存の本文がこの条件を満たします。`agents/openai.yaml` は表示・呼び出し方針・ツール依存を設定する任意ファイルで、今回は追加しません。このスキルには専用の表示素材や外部ツール依存がなく、上記の明示呼び出しで使えるためです。Claude 用と Codex 用に本文を分ける必要もありません。[仕様の根拠](https://learn.chatgpt.com/docs/build-skills)
+
+## 使い方（例：Claude Code が開発、Codex が監査）
+
+1. Claude Code に「開発を始める」、Codex に「監査を始める」の[開始文](templates/start-prompts.md)を貼ります。
+2. Claude Code の枠が危なくなったら、「交代の準備」を貼ります。
+3. Codex に「開発を引き継ぐ」を貼ります。
+4. Claude Code の枠が戻ったら、「監査席に着く」を貼ります。
+
+## 由来
+
+このスキルは、前身の foreman-handoff（主任の交代だけを扱うスキル）を作り替えたものです。作り替えの作業そのものも、B2B 方式（Claude が開発、Codex が監査）で行いました。
 
 ## English summary
 
-A Markdown-only skill for handing the "lead agent" role between coding agents (Claude Code ⇄ Codex, or a fresh session). The outgoing lead keeps a `HANDOFF.md` current at each verified checkpoint. When usage or context runs low, it writes a 5-line emergency record and stops writing. The incoming lead first verifies anything marked unverified, confirms the previous lead has stopped, marks the handoff `ACCEPTED`, and continues. The heavy work of reading, checking, and continuing is paid from the incoming agent's quota. The skill never launches models, never monitors usage, and never widens permissions. Copy-paste start prompts are in `templates/start-prompts.md`.
+B2B (back-to-back, as in two DJs alternating) is a Markdown-only skill for two coding agents that take turns as developer and auditor. The developer is the only writer of code and keeps `HANDOFF.md` current. The auditor reviews read-only, from the last read commit up to HEAD, including uncommitted diffs, and writes only `AUDIT.md`. It records a *read* position and a separate *passed* position. Changes beyond the passed position are not merged, pushed, or deployed without the user's explicit instruction. When the developer's usage or context runs low, it saves a short state record and stops writing. The auditor then flushes its audit, audits any remaining commits, and takes over development. The former developer returns as the auditor once its quota recovers. Memory lives in the two files, not in any model's context. The skill instructions never launch models, monitor usage, or widen permissions. The optional relay can invoke a CLI auditor with user authorization; it returns an audit through AUDIT.md.
 
 ## License
 

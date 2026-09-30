@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+B2B_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+exec python3 -B "$B2B_ROOT/relay/runner.py" "$@"
