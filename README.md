@@ -22,8 +22,8 @@ B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出�
 
 ## 仕組み
 
-1. 開発役がコミットするたびに、監査役が「監査済みの位置」から HEAD までを読み取りだけで監査します。
-2. 監査が済んでいない変更（監査待ち）は、merge も push もしません。
+1. 開発役がコミットするたびに、監査役が「読了位置」から HEAD まで（未 commit の差分を含む）を、読み取りだけで監査します。「問題なし」と判定され、重大な未対応の指摘がない最後のコミットが「合格位置」になります。
+2. 合格位置より後の変更（監査待ち）は、ユーザーの明示の指示がない限り、merge・push・deploy しません。
 3. 交代の合図（ユーザーの指示、事前に決めた目安、上限の警告、コンテキストの限界）が出たら、開発役は `HANDOFF.md` の冒頭に最小限を保存して、書き込みを止めます。
 4. 監査役は、途中の監査を書き出し、まだ監査していないコミットを監査してから、開発を受け入れます。
 5. 元の開発役は、枠が戻ったら監査役として戻ります。そのあいだに入ったコミットは、監査待ちのまま待ちます。
@@ -80,7 +80,7 @@ b2b-dev/
 
 ## English summary
 
-B2B (back-to-back, as in two DJs alternating) is a Markdown-only skill for two coding agents that take turns as developer and auditor. The developer is the only writer of code and keeps `HANDOFF.md` current. The auditor reviews read-only, from the last audited commit up to HEAD, and writes only `AUDIT.md`. Unaudited commits are never merged or pushed. When the developer's usage or context runs low, it saves a short state record and stops writing. The auditor then flushes its audit, audits any remaining commits, and takes over development. The former developer returns as the auditor once its quota recovers. Memory lives in the two files, not in any model's context. The skill never launches models, never monitors usage, and never widens permissions.
+B2B (back-to-back, as in two DJs alternating) is a Markdown-only skill for two coding agents that take turns as developer and auditor. The developer is the only writer of code and keeps `HANDOFF.md` current. The auditor reviews read-only, from the last read commit up to HEAD, including uncommitted diffs, and writes only `AUDIT.md`. It records a *read* position and a separate *passed* position. Changes beyond the passed position are not merged, pushed, or deployed without the user's explicit instruction. When the developer's usage or context runs low, it saves a short state record and stops writing. The auditor then flushes its audit, audits any remaining commits, and takes over development. The former developer returns as the auditor once its quota recovers. Memory lives in the two files, not in any model's context. The skill never launches models, never monitors usage, and never widens permissions.
 
 ## License
 
