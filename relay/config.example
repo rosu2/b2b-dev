@@ -3,5 +3,6 @@
   "auditor": "claude",
   "model": "opus",
   "timeout_seconds": 600,
-  "max_rounds": 3
+  "max_rounds": 3,
+  "runtime": "isolated"
 }

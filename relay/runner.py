@@ -89,7 +89,7 @@ def run_child(cmd, prompt, timeout, env):
         out, err = child.communicate(prompt, timeout=timeout)
         if child.returncode:
             if 'not logged in' in (out + err).lower():
-                raise UserDecision('隔離したClaude runtimeで認証が必要。外部設定は変更せずユーザー判断で停止。')
+                raise UserDecision('Claude runtimeで認証が必要。設定は変更せずユーザー判断で停止。')
             # Do not expose stderr that could include credentials or private settings.
             raise RuntimeError('CLI失敗: exit=' + str(child.returncode))
         return out
@@ -199,18 +199,34 @@ def main():
         if sum(row.get('range') == scope for row in history) >= limit:
             code, verdict = 20, '要ユーザー判断（同範囲の往復上限）'
             return code
-        runtime = STATE / 'runtime'
-        runtime.mkdir(mode=0o700, exist_ok=True)
         tmp = STATE / 'tmp'
         tmp.mkdir(mode=0o700, exist_ok=True)
         env = os.environ.copy()
-        env.update(CLAUDE_CONFIG_DIR=str(runtime), CLAUDE_CODE_TMPDIR=str(tmp),
-                   DISABLE_AUTOUPDATER='1', TMPDIR=str(tmp))
-        # Existing OAuth credentials may be read, never printed. Local runtime copy only.
-        creds = Path(os.environ.get('CLAUDE_CONFIG_DIR', str(Path.home() / '.claude'))) / '.credentials.json'
-        if creds.is_file() and not (runtime / '.credentials.json').exists():
-            shutil.copyfile(creds, runtime / '.credentials.json')
-            (runtime / '.credentials.json').chmod(0o600)
+        env.update(CLAUDE_CODE_TMPDIR=str(tmp), DISABLE_AUTOUPDATER='1', TMPDIR=str(tmp))
+        runtime_mode = config.get('runtime', 'isolated')
+        if runtime_mode == 'isolated':
+            runtime = STATE / 'runtime'
+            runtime.mkdir(mode=0o700, exist_ok=True)
+            env['CLAUDE_CONFIG_DIR'] = str(runtime)
+            creds = Path(os.environ.get('CLAUDE_CONFIG_DIR', str(Path.home() / '.claude'))) / '.credentials.json'
+            if creds.is_file() and not (runtime / '.credentials.json').exists():
+                shutil.copyfile(creds, runtime / '.credentials.json')
+                (runtime / '.credentials.json').chmod(0o600)
+        elif runtime_mode == 'normal':
+            if sys.platform != 'darwin' or not Path('/usr/bin/sandbox-exec').exists():
+                raise UserDecision('通常runtimeの設定保護はmacOSのみ対応。ユーザー判断で停止。')
+            normal = Path(env.get('CLAUDE_CONFIG_DIR', str(Path.home() / '.claude'))).resolve()
+            # Permit CLI state only; protect configuration even inside runtime.
+            quote = lambda path: json.dumps(str(path))
+            policy = ('(version 1)(allow default)(deny file-write*)'
+                      '(allow file-write* (subpath ' + quote(normal) + ')'
+                      ' (subpath ' + quote(STATE) + ') (literal "/dev/null"))'
+                      '(deny file-write* (literal ' + quote(Path.home() / '.claude.json') + ')'
+                      ' (literal ' + quote(normal / '.claude.json') + ')'
+                      ' (regex #".*/settings(\\.local)?\\.json$"))')
+            cmd = ['/usr/bin/sandbox-exec', '-p', policy, *cmd]
+        else:
+            raise ValueError('runtimeはisolatedまたはnormal')
         source = []
         for path in git('ls-files').splitlines():
             data = (ROOT / path).read_text()
