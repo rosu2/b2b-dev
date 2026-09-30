@@ -64,7 +64,7 @@ def command(config):
         return ['claude', '-p', '--model', config['model'], '--tools', '',
                 '--permission-mode', 'plan', '--no-session-persistence',
                 '--safe-mode', '--setting-sources', '', '--strict-mcp-config',
-                '--mcp-config', '{}']
+                '--mcp-config', '{"mcpServers":{}}']
     # Codex CLI read-only sandbox constrains tools, but not its own runtime writes.
     # This first version refuses it rather than changing CODEX_HOME or global config.
     raise ValueError('第1段階は claude のみ対応。codex の runtime 隔離は未実装（ユーザー判断）。')
