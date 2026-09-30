@@ -30,7 +30,7 @@ B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出�
 
 ## しないこと
 
-- モデルの起動や切り替え、使用量の監視、エージェント間の自動送信はしません。席の交代は、ユーザーが開始文を貼って行います。
+- スキル本体はモデルの起動・切り替え、使用量の監視、自動送信を行いません。任意の relay は、ユーザーの許可で CLI 監査を呼び出します。席の交代はユーザーが開始文を貼って行います。
 - commit・push・本番操作などの権限を増やしません。
 - スキル本体は Markdown だけです。[relay](relay/README.md) は、ユーザーが許可した CLI 監査を呼び出す任意の道具です。
 
@@ -43,6 +43,8 @@ b2b-dev/
 │   ├── handoff.md            # HANDOFF.md の雛形
 │   ├── audit.md              # AUDIT.md の雛形
 │   └── start-prompts.md      # 開発・監査・交代の開始文
+├── relay/                    # 任意の CLI 監査の通路
+├── .gitignore                # .b2b/ の状態を公開しない
 ├── README.md
 └── LICENSE
 ```
@@ -123,7 +125,7 @@ Codex の必須ファイルは、`name`・`description` を持つ `SKILL.md` で
 
 ## English summary
 
-B2B (back-to-back, as in two DJs alternating) is a Markdown-only skill for two coding agents that take turns as developer and auditor. The developer is the only writer of code and keeps `HANDOFF.md` current. The auditor reviews read-only, from the last read commit up to HEAD, including uncommitted diffs, and writes only `AUDIT.md`. It records a *read* position and a separate *passed* position. Changes beyond the passed position are not merged, pushed, or deployed without the user's explicit instruction. When the developer's usage or context runs low, it saves a short state record and stops writing. The auditor then flushes its audit, audits any remaining commits, and takes over development. The former developer returns as the auditor once its quota recovers. Memory lives in the two files, not in any model's context. The skill never launches models, never monitors usage, and never widens permissions.
+B2B (back-to-back, as in two DJs alternating) is a Markdown-only skill for two coding agents that take turns as developer and auditor. The developer is the only writer of code and keeps `HANDOFF.md` current. The auditor reviews read-only, from the last read commit up to HEAD, including uncommitted diffs, and writes only `AUDIT.md`. It records a *read* position and a separate *passed* position. Changes beyond the passed position are not merged, pushed, or deployed without the user's explicit instruction. When the developer's usage or context runs low, it saves a short state record and stops writing. The auditor then flushes its audit, audits any remaining commits, and takes over development. The former developer returns as the auditor once its quota recovers. Memory lives in the two files, not in any model's context. The skill instructions never launch models, monitor usage, or widen permissions. The optional relay can invoke a CLI auditor with user authorization; it returns an audit through AUDIT.md.
 
 ## License
 

@@ -23,13 +23,13 @@ relay/b2b log
 
 CLI のオプションは起動時にも実機のヘルプに照合します。Claude は `-p`、ツールなし、plan、セッション保存なし、safe-mode で起動します。本文と差分は relay が読み取り、標準入力で渡します。外部へのモデル送信は、ユーザーが CLI 監査を許可した場合だけ行ってください。
 
-監査役はファイルを編集せず、指定した境界行に挟んだ AUDIT.md の全文を返します。relay は見出し・必須節・判定・位置・既存指摘の保持を検証します。合格に開いた指摘がある結果は拒否します。監査前後のファイル内容は Git の追跡外・ignored・Git内部も含めて比較し、差分があればAUDITを反映せず終了30とします。実行状態用の `.b2b/` だけは比較から除外します。監査ツールは無効ですが、CLI 自体の runtime までOSのsandboxで強制する仕組みではありません。
+監査役はファイルを編集せず、指定した境界行に挟んだ AUDIT.md の全文を返します。relay は見出し・必須節・判定・位置・既存指摘の保持を検証します。合格に開いた指摘がある結果は低重大度も含めて拒否します。これは公開の規則一致まで確認する、このrelayの厳しい判定方針です。非合格なら合格位置は旧値を維持する必要があります。監査前後のファイル内容は Git の追跡外・ignored・Git内部も含めて比較し、差分があればAUDITを反映せず終了30とします。監査役がAUDITを直接変更していた場合も違反としてログに残し、relayが元のAUDITへ戻します。比較処理が失敗してもログ記録を試み、lockの解放は別のfinallyで行います。実行状態用の `.b2b/` だけは比較から除外します。監査ツールは無効ですが、CLI 自体の runtime までOSのsandboxで強制する仕組みではありません。
 
 `.b2b/runtime` と `.b2b/tmp` に CLI の状態を置き、自動更新を無効にします。既存の `.credentials.json` がある場合は認証用に runtime 内へコピーし、権限を600にします。認証値・CLIのstderr・入力全文をログには出しません。`.b2b/` は認証情報を含む可能性があるため、追跡・公開しないでください。
 
 認証が認識されない場合は終了20でユーザー判断に回します。relayはログインやキーチェーンの変更を行いません。
 
-通常runtimeの使用が承認された場合は `.b2b/config.json` に `{"runtime":"normal"}` を設定できます。通常の認証と内部状態を利用し、認証情報は複写しません。macOSのsandbox-execにより、書き込みはClaudeのruntimeとこのリポジトリの.b2bに限定し、.claude.jsonとsettings.json/settings.local.jsonへの書き込みは禁止します。plan・ツールなし・safe-mode・MCPなしは維持し、設定変更や承認の迂回は行いません。
+通常runtimeの使用が承認された場合は `.b2b/config.json` に `{"runtime":"normal"}` を設定できます。通常の認証と内部状態を利用し、認証情報は複写しません。macOSのsandbox-execにより、書き込みはClaudeのruntimeとこのリポジトリの.b2bに限定し、.claude.json・settings.json/settings.local.json・CLAUDE.md・keybindings.jsonと、skills/・agents/・commands/・plugins/・hooks/・rules/への書き込みは禁止します。plan・ツールなし・safe-mode・MCPなしは維持し、設定変更や承認の迂回は行いません。
 
 Codex は実機で `exec --sandbox read-only --ephemeral` を確認しましたが、それだけで CLI 自身のリポジトリ外への runtime 書き込みを隔離できるとは確認できません。第1段階では `auditor: codex` を指定するとユーザー判断（20）で停止します。Claude の通路を先に実証し、Codex 側の runtime 隔離と swap は次段階です。
 

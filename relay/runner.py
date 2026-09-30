@@ -62,6 +62,19 @@ def snapshot():
     return result
 
 
+def sandbox_policy(normal):
+    quote = lambda path: json.dumps(str(path))
+    protected = ['CLAUDE.md', 'keybindings.json', 'settings.json', 'settings.local.json', '.claude.json']
+    directories = ['skills', 'agents', 'commands', 'plugins', 'hooks', 'rules']
+    policy = ('(version 1)(allow default)(deny file-write*)'
+              '(allow file-write* (subpath ' + quote(normal) + ')'
+              ' (subpath ' + quote(STATE) + ') (literal "/dev/null"))'
+              '(deny file-write* (literal ' + quote(Path.home() / '.claude.json') + ')')
+    policy += ''.join(' (literal ' + quote(normal / name) + ')' for name in protected)
+    policy += ''.join(' (subpath ' + quote(normal / name) + ')' for name in directories)
+    return policy + ' (regex #".*/settings(\\.local)?\\.json$"))'
+
+
 def command(config):
     cli = config['auditor']
     if cli == 'claude':
@@ -128,6 +141,8 @@ def validate(output, head, old):
     allowed = {'未対応', 'ユーザー判断待ち', '対応済み', '受け入れ', '却下', 'ユーザー決定済み'}
     if any(state not in allowed for state in current.values()):
         raise ValueError('指摘の状態が不正')
+    if codes[verdict] != 0 and position(body, '合格位置').split()[0] != position(old, '合格位置').split()[0]:
+        raise ValueError('非合格の判定で合格位置が変わっている')
     if codes[verdict] == 0:
         if any(is_open(s) for s in current.values()):
             raise ValueError('開いた指摘があるのに合格')
@@ -193,12 +208,14 @@ def main():
         return 30
     start = time.monotonic()
     code, verdict = 30, 'エラーまたは違反'
-    before = snapshot()
+    before = None
+    observed_changes = []
+    audit_written = False
     try:
+        before = snapshot()
         history = [json.loads(line) for line in (STATE / 'log.jsonl').read_text().splitlines()] if (STATE / 'log.jsonl').exists() else []
         if sum(row.get('range') == scope for row in history) >= limit:
-            code, verdict = 20, '要ユーザー判断（同範囲の往復上限）'
-            return code
+            raise UserDecision('同範囲の往復上限')
         tmp = STATE / 'tmp'
         tmp.mkdir(mode=0o700, exist_ok=True)
         env = os.environ.copy()
@@ -216,14 +233,7 @@ def main():
             if sys.platform != 'darwin' or not Path('/usr/bin/sandbox-exec').exists():
                 raise UserDecision('通常runtimeの設定保護はmacOSのみ対応。ユーザー判断で停止。')
             normal = Path(env.get('CLAUDE_CONFIG_DIR', str(Path.home() / '.claude'))).resolve()
-            # Permit CLI state only; protect configuration even inside runtime.
-            quote = lambda path: json.dumps(str(path))
-            policy = ('(version 1)(allow default)(deny file-write*)'
-                      '(allow file-write* (subpath ' + quote(normal) + ')'
-                      ' (subpath ' + quote(STATE) + ') (literal "/dev/null"))'
-                      '(deny file-write* (literal ' + quote(Path.home() / '.claude.json') + ')'
-                      ' (literal ' + quote(normal / '.claude.json') + ')'
-                      ' (regex #".*/settings(\\.local)?\\.json$"))')
+            policy = sandbox_policy(normal)
             cmd = ['/usr/bin/sandbox-exec', '-p', policy, *cmd]
         else:
             raise ValueError('runtimeはisolatedまたはnormal')
@@ -241,11 +251,12 @@ def main():
                   + '\nAUDIT:\n' + audit + '\nDIFF:\n' + git('diff', scope)
                   + '\n現在の全追跡ファイル:\n' + ''.join(source))
         output = run_child(cmd, prompt, timeout, env)
-        body, verdict, code, current = validate(output, head, audit)
         after = snapshot()
         changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+        observed_changes = changed
         if changed:
             raise RuntimeError('監査中のファイル変更違反: ' + ', '.join(changed))
+        body, verdict, code, current = validate(output, head, audit)
         memo_path = STATE / 'state.json'
         memo = json.loads(memo_path.read_text()) if memo_path.exists() else {'last': findings(audit), 'reopens': {}}
         for key, state in current.items():
@@ -260,26 +271,41 @@ def main():
         memo_path.write_text(json.dumps(memo, ensure_ascii=False))
         (STATE / 'audit.next').write_text(body)
         os.replace(STATE / 'audit.next', ROOT / 'AUDIT.md')
+        audit_written = True
         print(verdict)
-        return code
     except UserDecision as error:
         print(str(error))
-        code, verdict = 20, '要ユーザー判断（Claudeの認証が必要）'
-        return code
+        code, verdict = 20, '要ユーザー判断（' + str(error) + '）'
     except Exception as error:
         print(type(error).__name__ + ': ' + str(error))
         code, verdict = 30, 'エラーまたは違反'
-        return code
     finally:
-        after = snapshot()
-        unexpected = [k for k in set(before) | set(after) if k != 'AUDIT.md' and before.get(k) != after.get(k)]
-        row = {'time': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-               'caller': config['developer'], 'callee': config['auditor'], 'action': 'audit',
-               'range': scope, 'verdict': verdict, 'exit_code': code,
-               'duration_seconds': round(time.monotonic() - start, 2), 'unexpected_changes': unexpected}
-        with (STATE / 'log.jsonl').open('a') as stream:
-            stream.write(json.dumps(row, ensure_ascii=False) + '\n')
-        lock.rmdir()
+        comparison_error = None
+        try:
+            try:
+                after = snapshot()
+                if before is not None:
+                    extra = [k for k in set(before) | set(after)
+                             if not (k == 'AUDIT.md' and audit_written)
+                             and before.get(k) != after.get(k)]
+                    observed_changes = sorted(set(observed_changes) | set(extra))
+                if 'AUDIT.md' in observed_changes and not audit_written:
+                    (ROOT / 'AUDIT.md').write_text(audit)
+            except Exception as error:
+                comparison_error = type(error).__name__
+                code, verdict = 30, 'エラーまたは違反（前後比較失敗）'
+            row = {'time': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                   'caller': config['developer'], 'callee': config['auditor'], 'action': 'audit',
+                   'range': scope, 'verdict': verdict, 'exit_code': code,
+                   'duration_seconds': round(time.monotonic() - start, 2),
+                   'unexpected_changes': observed_changes, 'comparison_error': comparison_error}
+            with (STATE / 'log.jsonl').open('a') as stream:
+                stream.write(json.dumps(row, ensure_ascii=False) + '\n')
+        finally:
+            lock.rmdir()
+        if comparison_error:
+            print('前後比較が失敗。ログに記録しlockを解放。')
+    return code
 
 
 if __name__ == '__main__':
