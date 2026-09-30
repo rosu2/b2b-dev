@@ -32,7 +32,7 @@ B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出�
 
 - モデルの起動や切り替え、使用量の監視、エージェント間の自動送信はしません。席の交代は、ユーザーが開始文を貼って行います。
 - commit・push・本番操作などの権限を増やしません。
-- 実行スクリプトやネットワーク通信を含みません。中身は Markdown だけです。
+- スキル本体は Markdown だけです。[relay](relay/README.md) は、ユーザーが許可した CLI 監査を呼び出す任意の道具です。
 
 ## 構成
 
@@ -64,9 +64,11 @@ b2b-dev/
 | Claude Code | `~/.claude/skills/b2b-dev` → このリポジトリ | `/b2b-dev` |
 | Codex | `~/.agents/skills/b2b-dev` → このリポジトリ | `$b2b-dev`（CLI・IDE では `/skills` からも選択可） |
 
-両ツールの公式資料で、上記の配置場所とリンクされたスキルフォルダの読み込みを確認しています。[Claude Code Skills](https://code.claude.com/docs/en/skills)、[OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills)（2026-10-01 確認）。Claude のこの配置はローカルの Claude Code 用です。Cowork・クラウドのセッションは、この個人用フォルダを読みません。
+両ツールの公式資料で、上記の配置場所とリンクされたスキルフォルダの読み込みを確認しています。[Claude Code Skills](https://code.claude.com/docs/en/skills)、[OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills)（2026-10-01 確認）。Claude のこの配置はローカルの Claude Code 用です。
 
 **同期処理がある場合：** 導入前に `b2b-dev` を、両方のスキル置き場をコピー・置換する処理の対象から外してください。両リンクは独立して原本を指すようにします。リンクだけでは、未知の同期処理によるリンクの置換や、リンク先の本文の書き換えを防げません。除外できたか不明なら、上の「インストールしなくても使う」方法で原本の `SKILL.md` を直接指定してください。同期処理の特定や設定変更は、このスキルの機能に含みません。
+
+リポジトリは恒久的な場所に置いてから導入してください。移動・改名したら、両リンクを新しい絶対パスへ張り直します。既存リンクの削除・張り直しは、リンク先を確認してユーザーが行ってください。以下の導入例は既存リンクを自動修復しません。
 
 次は macOS・Linux のシェルでユーザーが実行する導入例です。先にこのリポジトリのルートへ移動してください。既存の同名フォルダやリンク（リンク切れを含む）があれば、上書きせずに停止します。
 
@@ -84,17 +86,19 @@ else
 fi
 ```
 
-導入後や同期処理が動いた後は、同じリポジトリのルートで確認します。`readlink` の出力が両方とも原本の絶対パスで、`cmp` が両方とも終了コード0なら、リンク先と本文が一致しています。
+導入後や同期処理が動いた後は、同じリポジトリのルートで確認します。`test -f` が終了コード0なら本文へ到達でき、リンク切れでは失敗します。`readlink` の出力が両方とも原本の絶対パスかを確認してください。`cmp` はコピーに置き換わった場合の本文の違いを検出します。正常なリンクなら同じファイル同士の比較になるので、原本そのものの改変は検出しません。コピーへの置換自体は `readlink` の失敗で検出します。
 
 ```sh
+test -f "$HOME/.claude/skills/b2b-dev/SKILL.md"
+test -f "$HOME/.agents/skills/b2b-dev/SKILL.md"
 readlink "$HOME/.claude/skills/b2b-dev"
 readlink "$HOME/.agents/skills/b2b-dev"
 cmp SKILL.md "$HOME/.claude/skills/b2b-dev/SKILL.md"
 cmp SKILL.md "$HOME/.agents/skills/b2b-dev/SKILL.md"
-git --no-optional-locks diff -- SKILL.md
+git --no-optional-locks status --short
 ```
 
-最後の差分確認は、リンク先の原本自体が書き換えられていないかを見るためです。意図しない変更があれば、その状態で使わず、原本と同期設定を確認してください。
+最後の状態確認は、原本・templates・追跡外ファイルを含むリポジトリ全体の変更を見るためです。意図しない変更があれば、その状態で使わず、原本と同期設定を確認してください。
 
 ### 呼び出す
 

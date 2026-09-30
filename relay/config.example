@@ -1,0 +1,7 @@
+{
+  "developer": "Codex",
+  "auditor": "claude",
+  "model": "opus",
+  "timeout_seconds": 600,
+  "max_rounds": 3
+}
