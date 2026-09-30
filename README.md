@@ -55,17 +55,56 @@ b2b-dev/
 <このフォルダ>/SKILL.md を読み、b2b-dev の <開発役／監査役> として作業してください。
 ```
 
-常に使う場合は、フォルダごと各ツールのスキル置き場にコピーします。
+### ローカルで導入する（Claude Code・Codex）
 
-| ツール | ユーザー単位の配置例 |
-| --- | --- |
-| Claude Code | `~/.claude/skills/b2b-dev/` |
-| Codex | `~/.agents/skills/b2b-dev/` |
+`SKILL.md` を唯一の手順本文として、両ツールからこのリポジトリへ直接リンクします。コピーや製品名の置換はしません。導入はユーザーが行います。
 
-- すでに同じ名前のフォルダがあれば、上書きせずに差分を確かめてください。
-- スキル置き場を別のツールと同期するスクリプトなどを使っている場合、同期のときに製品名が書き換えられることがあります（例：「Claude」→「Codex」）。導入後に、`SKILL.md` が原本と同じかを確かめてください。
+| ツール | ユーザー単位のリンク | 呼び出し |
+| --- | --- | --- |
+| Claude Code | `~/.claude/skills/b2b-dev` → このリポジトリ | `/b2b-dev` |
+| Codex | `~/.agents/skills/b2b-dev` → このリポジトリ | `$b2b-dev`（CLI・IDE では `/skills` からも選択可） |
 
-公式の資料：[Claude Code Skills](https://code.claude.com/docs/en/skills)、[Codex Skills](https://learn.chatgpt.com/docs/build-skills)
+両ツールの公式資料で、上記の配置場所とリンクされたスキルフォルダの読み込みを確認しています。[Claude Code Skills](https://code.claude.com/docs/en/skills)、[OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills)（2026-10-01 確認）。Claude のこの配置はローカルの Claude Code 用です。Cowork・クラウドのセッションは、この個人用フォルダを読みません。
+
+**同期処理がある場合：** 導入前に `b2b-dev` を、両方のスキル置き場をコピー・置換する処理の対象から外してください。両リンクは独立して原本を指すようにします。リンクだけでは、未知の同期処理によるリンクの置換や、リンク先の本文の書き換えを防げません。除外できたか不明なら、上の「インストールしなくても使う」方法で原本の `SKILL.md` を直接指定してください。同期処理の特定や設定変更は、このスキルの機能に含みません。
+
+次は macOS・Linux のシェルでユーザーが実行する導入例です。先にこのリポジトリのルートへ移動してください。既存の同名フォルダやリンク（リンク切れを含む）があれば、上書きせずに停止します。
+
+```sh
+b2b_repo="$(pwd -P)"
+if [ ! -f "$b2b_repo/SKILL.md" ]; then
+  echo "このリポジトリのルートで実行してください。"
+elif [ -e "$HOME/.claude/skills/b2b-dev" ] || [ -L "$HOME/.claude/skills/b2b-dev" ] ||
+     [ -e "$HOME/.agents/skills/b2b-dev" ] || [ -L "$HOME/.agents/skills/b2b-dev" ]; then
+  echo "同名の配置があります。リンク先と内容を確認してから導入してください。"
+else
+  mkdir -p "$HOME/.claude/skills" "$HOME/.agents/skills" &&
+  ln -s "$b2b_repo" "$HOME/.claude/skills/b2b-dev" &&
+  ln -s "$b2b_repo" "$HOME/.agents/skills/b2b-dev"
+fi
+```
+
+導入後や同期処理が動いた後は、同じリポジトリのルートで確認します。`readlink` の出力が両方とも原本の絶対パスで、`cmp` が両方とも終了コード0なら、リンク先と本文が一致しています。
+
+```sh
+readlink "$HOME/.claude/skills/b2b-dev"
+readlink "$HOME/.agents/skills/b2b-dev"
+cmp SKILL.md "$HOME/.claude/skills/b2b-dev/SKILL.md"
+cmp SKILL.md "$HOME/.agents/skills/b2b-dev/SKILL.md"
+git --no-optional-locks diff -- SKILL.md
+```
+
+最後の差分確認は、リンク先の原本自体が書き換えられていないかを見るためです。意図しない変更があれば、その状態で使わず、原本と同期設定を確認してください。
+
+### 呼び出す
+
+作業対象のプロジェクトを開き、Claude Code では `/b2b-dev`、Codex では `$b2b-dev` に、席・目的・完成条件・branch を添えて呼び出します。具体的な入力文は [templates/start-prompts.md](templates/start-prompts.md) を使ってください。Codex の画面で選択方法が異なる場合は、スキル一覧から選ぶか、原本の `SKILL.md` の絶対パスを指定して読み込ませます。
+
+新しいセッションでスキルが見えることを確認してください。Codex は変更を自動検出しますが、現れなければ再起動します。同じ名前のコピーがほかにもある場合は、どの原本を読んだかを確認します。リンクと本文の一致は、実際の呼び出し成功とは別の確認です。
+
+### Codex 用ファイルの判断
+
+Codex の必須ファイルは、`name`・`description` を持つ `SKILL.md` です。既存の本文がこの条件を満たします。`agents/openai.yaml` は表示・呼び出し方針・ツール依存を設定する任意ファイルで、今回は追加しません。このスキルには専用の表示素材や外部ツール依存がなく、上記の明示呼び出しで使えるためです。Claude 用と Codex 用に本文を分ける必要もありません。[仕様の根拠](https://learn.chatgpt.com/docs/build-skills)
 
 ## 使い方（例：Claude Code が開発、Codex が監査）
 
