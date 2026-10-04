@@ -46,6 +46,7 @@ b2b-dev/
 ├── relay/                    # 任意の CLI 監査の通路
 ├── .gitignore                # .b2b/ の状態を公開しない
 ├── README.md
+├── TERMS.md                  # 新規部分に適用する利用条件と、既存MIT部分の区別
 └── LICENSE
 ```
 
@@ -127,6 +128,8 @@ Codex の必須ファイルは、`name`・`description` を持つ `SKILL.md` で
 
 B2B (back-to-back, as in two DJs alternating) is a Markdown-only skill for two coding agents that take turns as developer and auditor. The developer is the only writer of code and keeps `HANDOFF.md` current. The auditor reviews read-only, from the last read commit up to HEAD, including uncommitted diffs, and writes only `AUDIT.md`. It records a *read* position and a separate *passed* position. Changes beyond the passed position are not merged, pushed, or deployed without the user's explicit instruction. When the developer's usage or context runs low, it saves a short state record and stops writing. The auditor then flushes its audit, audits any remaining commits, and takes over development. The former developer returns as the auditor once its quota recovers. Memory lives in the two files, not in any model's context. The skill instructions never launch models, monitor usage, or widen permissions. The optional relay can invoke a CLI auditor with user authorization; it returns an audit through AUDIT.md.
 
-## License
+## 利用条件 / License
 
-MIT。詳しくは [LICENSE](LICENSE) を参照してください。
+利用方針は、**個人の学習・趣味などの非商用利用は無料、業務・商用利用は別途の有料契約**です。詳しくは [TERMS.md](TERMS.md) を参照してください。この新条件は、権利者が適用を明示した新規部分に限ります。
+
+**現行の既存MIT部分と、既にMITで配布した版は、引き続き商用利用も無料です。** この方針を記載しても、過去の許諾を取り消したり、現行のスキル全体を有料に変更したりはしません。既存部分の許諾と表示条件は [LICENSE](LICENSE) を参照してください。
