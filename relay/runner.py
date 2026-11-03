@@ -677,7 +677,16 @@ def main():
     audit_written = False
     codex_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
     settings_before = None
-    settings_changes = []
+    settings_changes = None  # None: not compared (distinct from [] = compared, unchanged)
+    settings_error = None
+
+    def compare_settings():
+        nonlocal settings_changes
+        settings_after = codex_settings(codex_home)
+        settings_changes = sorted(k for k in set(settings_before) | set(settings_after)
+                                  if settings_before.get(k) != settings_after.get(k))
+        return settings_changes
+
     try:
         before = snapshot()
         history = [json.loads(line) for line in (STATE / 'log.jsonl').read_text().splitlines()] if (STATE / 'log.jsonl').exists() else []
@@ -721,10 +730,7 @@ def main():
         if changed:
             raise RuntimeError('監査中のファイル変更違反: ' + ', '.join(changed))
         if settings_before is not None:
-            settings_after = codex_settings(codex_home)
-            settings_changes = sorted(k for k in set(settings_before) | set(settings_after)
-                                      if settings_before.get(k) != settings_after.get(k))
-            if settings_changes:
+            if compare_settings():
                 raise RuntimeError('監査中のCodex設定変更: ' + ', '.join(settings_changes))
             output = codex_message(output)
         body, verdict, code, current = validate(output, head, audit)
@@ -765,6 +771,15 @@ def main():
             except Exception as error:
                 comparison_error = type(error).__name__
                 code, verdict = 30, 'エラーまたは違反（前後比較失敗）'
+            # Failure paths (CLI error, auth stop, timeout, repository violation) still compare Codex settings.
+            if settings_before is not None and settings_changes is None:
+                try:
+                    if compare_settings():
+                        code, verdict = 30, 'エラーまたは違反（Codex設定変更）'
+                        print('監査中のCodex設定変更: ' + ', '.join(settings_changes))
+                except Exception as error:
+                    settings_error = type(error).__name__
+                    code, verdict = 30, 'エラーまたは違反（Codex設定の比較失敗）'
             stamp, zone = local_time()
             row = {'time': datetime.datetime.now(datetime.timezone.utc).isoformat(),
                    'local_time': stamp, 'timezone': zone,
@@ -772,8 +787,9 @@ def main():
                    'range': scope, 'verdict': verdict, 'exit_code': code,
                    'duration_seconds': round(time.monotonic() - start, 2),
                    'unexpected_changes': observed_changes, 'comparison_error': comparison_error}
-            if settings_before is not None:
+            if config['auditor'] == 'codex':
                 row['codex_settings_changes'] = settings_changes
+                row['codex_settings_error'] = settings_error
             with (STATE / 'log.jsonl').open('a') as stream:
                 stream.write(json.dumps(row, ensure_ascii=False) + '\n')
         finally:
