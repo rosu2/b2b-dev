@@ -293,6 +293,11 @@ class ProofTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.swap()
 
+    def test_swap_accepts_baton_ready(self):
+        (self.root / 'HANDOFF.md').write_text('# HANDOFF\n- 状態：BATON-READY\n')
+        record, _, _ = self.swap()
+        self.assertEqual(record['number'], 3)
+
     def test_accept_all_conditions_met(self):
         record, passphrase, answer = self.swap()
         self.assertTrue(r.record_confirmation(3, passphrase, 'tty-test'))

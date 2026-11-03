@@ -365,11 +365,15 @@ def running_relays():
             if 'relay/runner.py' in row and row.split()[0] != str(os.getpid())]
 
 
+# Baton touch (planned) and relief (emergency) both end in ACCEPTED through the same swap checks.
+PREPARED_STATES = ('BATON-READY', 'SWAP-PREPARED')
+
+
 def create_swap(config, by, granted=(), used=(), promises=(), rerun=None):
     """Write .b2b/handoff-<n>.json. Returns (record, passphrase, answer); the CLI never prints the answer."""
     handoff = (ROOT / 'HANDOFF.md').read_text() if (ROOT / 'HANDOFF.md').exists() else ''
-    if 'SWAP-PREPARED' not in position(handoff, '状態'):
-        raise ValueError('HANDOFFの状態がSWAP-PREPAREDではない。先に降りる開発役が保存する')
+    if not any(name in position(handoff, '状態') for name in PREPARED_STATES):
+        raise ValueError('HANDOFFの状態がBATON-READYでもSWAP-PREPAREDでもない。先に降りる開発役が保存する')
     if (STATE / 'lock').exists():
         raise ValueError('.b2b/lockがある。監査の実行中に交代しない')
     audit = (ROOT / 'AUDIT.md').read_text()
