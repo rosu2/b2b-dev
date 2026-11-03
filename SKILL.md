@@ -1,6 +1,6 @@
 ---
 name: b2b-dev
-description: B2B development and independent acceptance through HANDOFF.md and AUDIT.md. Use for developer/auditor handoffs, Owner-authorized one-off development delegation, and coordination of primary and additional auditors across existing agent sessions. B2B・開発と監査の交代・単発委任・複数AI監査・受入判定。
+description: B2B development and independent acceptance through HANDOFF.md and AUDIT.md. Use for developer/auditor handoffs (planned baton touch or emergency relief), debugging with read-only investigators, Owner-authorized one-off development delegation, and coordination of primary and additional auditors across existing agent sessions. B2B・開発と監査の交代（バトンタッチ／リリーフ）・デバッグ・単発委任・複数AI監査・受入判定。
 ---
 
 # B2B — Back-to-Back Development
@@ -33,6 +33,8 @@ B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出�
 
 - **`HANDOFF.md`（開発役が書く）：** 目的と完成条件、意図、試して捨てた案とその理由、最後に検証できた状態、次の一手、監査の指摘への返答。書き方は [templates/handoff.md](templates/handoff.md) に従います。
 - **`AUDIT.md`（監査役が書く）：** どこまで監査したか（コミットの範囲）、指摘（番号・重大度・状態）、判定、未解決の点。書き方は [templates/audit.md](templates/audit.md) に従います。
+
+デバッグの段階に入ったときだけ、開発役が `DEBUG.md` を加えます（下の「デバッグ」）。
 
 書類には、Secret や認証情報、会話の全文を書きません。commit するかどうかはユーザーが決めます。プロジェクトに既定の進捗記録があれば、それを正本にして、書類には差分だけを書きます。
 
@@ -141,17 +143,42 @@ OwnerがSpec Kit等の試行を選んだ場合は、[references/spec-driven-pilo
 - 枠が戻ったら、`AUDIT.md` を読み、読了位置から監査を再開します。
 - 交代した後の開発役の前提（例：「委託の既定は X へ」）を、自分自身への指示と読み違えないようにします。
 
-## 第三の担当（任意）
+## デバッグ（監査をさらに進めた段階・任意）
 
-難しい不具合など具体的な必要があり、ユーザーが許可したときだけ、別のモデルに**調査・助言監査**を任せられます。第三の担当はコードへ書き込みません。直し方の案は差分案として返してもらい、取り込むかどうかは開発役が決めて、開発役が書き込みます。単発の開発委任に変える場合は、上記の一時移譲として明示します。依頼には、次の項目を書きます。
+監査で見つかった不具合の原因を、調査役を加えて突き止める段階です。手順そのものは上の「不具合を直すときの切り分け」に従い、ここでは編成と記録を定めます。
 
-- 問題
+**入る条件：** 次のどちらかです。
+
+- 監査で重大度・高の不具合が見つかり、開発役と監査役のあいだで原因を特定できないとき
+- ユーザーの指示
+
+**編成：**
+
+- ユーザーの許可を得て、調査役を一人以上立てます。モデルは問いません。許可のない起動・再委託はしません。
+- 全員が `HANDOFF.md` と `AUDIT.md`、デバッグの記録を起点にします。ゼロから読み直しません。
+- コードの書き手は、常に開発役一人です。調査役はコードにも書類にも書き込まず、再現手順・原因の仮説と証拠・差分案を返します。取り込むかどうかは開発役が決めて、開発役が書き込みます。
+- 監査役は監査席のままです。修正を監査し、指摘を閉じるのは監査役です。
+- 調査役を単発の開発委任に変える場合は、上の「通常の交代以外を使うとき」の一時移譲として明示します。
+
+調査役への依頼には、次の項目を書きます（開始文は [templates/start-prompts.md](templates/start-prompts.md)）。
+
+- 問題と、対応する指摘の番号
 - 証拠の場所（担当者が読めることを確かめたもの）
-- 読んでよい範囲（書き込みは不可）
+- 読んでよい範囲（書き込みは不可）と、実行してよい検証
 - 完成条件
 - 差分案まで求めるか
 
-結果は、差分と検証の証拠で受け入れます。再委託は、明示の許可があるときだけにします。
+**記録：** 開発役が、作業ルートの `DEBUG.md`（雛形は [templates/debug.md](templates/debug.md)）に、不具合ごとに次を残します。調査役の報告は出典を付けて書き写し、自己申告として扱います。
+
+- 再現手順
+- 仮説と検証結果（否定できた仮説も残す）
+- 原因：確定／未確定と、その根拠
+- 採用した修正（該当コミット）と、採らなかった案
+- 回帰テスト（原因のある版で失敗し、修正後に成功したことを含む）
+
+`DEBUG.md` も Secret や会話の全文を書かず、commit するかどうかはユーザーが決めます。
+
+**終わる条件：** 原因が確定し、修正と回帰の確認が済み、監査役が `AUDIT.md` で該当の指摘を閉じたときです。原因が確定しないまま止めるか、続けるかは、ユーザーが決めます。結果は、差分と検証の証拠で受け入れます。
 
 ## 完了
 
