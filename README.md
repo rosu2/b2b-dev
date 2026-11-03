@@ -1,110 +1,79 @@
 # B2B — Back-to-Back Development
 
-> **English: [README.en.md](README.en.md)** — the English version of this README.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) · [日本語](README.ja.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-**2つのコーディングエージェントが「開発」と「監査」の席を交代しながら進める開発方式のスキルです。**（スキル名：`b2b-dev`）
-
-通常の交代に加え、Owner承認のもとで監査担当へ一つの修復だけを委ねる単発委任、Argon（Gemini）等を加えた主任・追加監査、監査担当による実行代行を扱います。既存の担当会話を継続し、コードの書き手は一人、実行成功と独立受入は別という境界を保ちます。詳しくは [coordination.md](references/coordination.md)、依頼文は [開始文](templates/start-prompts.md) を参照してください。これらは手順の追加であり、relayへの自動実行機能追加ではありません。
-
-B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出しているあいだ、もう片方はヘッドホンで聴いて次に備えます。
+**Problem:** when an AI coding agent's session ends, or its usage quota or context runs out, its memory is gone, and the next agent has to start over.
+**Solution:** B2B keeps that memory in two plain files, `HANDOFF.md` (written by the developer) and `AUDIT.md` (written by the auditor). Two agents, for example Claude Code and Codex, take turns in a developer seat and a read-only auditor seat.
+**Why it works:** the auditor has already reviewed every diff, so when the developer runs low it can take over development without re-reading everything, and the former developer comes back as the auditor.
 
 ```text
- 開発役 (on air) ──コミット──▶ 監査役 (cue)
+ developer (on air) ──commit──▶ auditor (cue, read-only)
    │  HANDOFF.md                  │  AUDIT.md
-   └──── 枠が危なくなったら席を交代 ────┘
+   └────── swap seats when quota or context runs low ──────┘
 ```
 
-## 解決すること
+"B2B" is a DJ term: two DJs alternate. While one is on air, the other listens on headphones and cues the next track.
 
-- **利用枠が尽きる問題：** 開発役（例：Claude Code）の枠が危なくなったら、監査役（例：Codex）が開発を引き継ぎます。元の開発役は、枠が戻ってから監査の席に着きます。二つの会社の枠を交互に使えます。
-- **記憶が消える問題：** 記憶は、モデルの頭の中ではなく、作業フォルダの2つの書類に残します。
-  - `HANDOFF.md`（開発役）：意図、捨てた案、最後の検証済み状態、次の一手
-  - `AUDIT.md`（監査役）：どこまで監査したか、指摘、判定
+## Three modes
 
-  どちらのモデルが、どちらの席に、いつ座っても、同じところから再開できます。
-- **交代の費用：** 監査役は差分をすでに読んでいるので、引き継ぎで一から読み直す必要がありません。
+| | Baton touch | Relief | Debugging |
+| --- | --- | --- | --- |
+| What | Planned seat swap | Emergency seat swap | An extended stage of auditing |
+| Trigger | User's instruction, or a threshold agreed in advance (e.g. 20% left) | Usage-limit warning, context limit, or an unexpected stop | A high-severity defect whose cause can't be found, or the user's instruction |
+| Leaving developer | Stops at a verified checkpoint and writes the full `HANDOFF.md` | Saves only a minimum record at once, or stops without saving | — |
+| Before taking over | Incoming developer finishes auditing up to HEAD | Incoming developer confirms the predecessor has stopped and that interrupted operations are safe; otherwise it does not take over | User-approved investigators start from `HANDOFF.md` / `AUDIT.md` and write nothing |
+| State / record | `BATON-READY` → `ACCEPTED` | `SWAP-PREPARED (unverified)` → `ACCEPTED` | The developer records each defect in `DEBUG.md`; it ends when the auditor closes the finding |
 
-## 仕組み
+In every mode there is exactly one writer of code, the audit is read-only, and no permission is widened. The detailed procedures are in [SKILL.md](SKILL.md) (in Japanese).
 
-1. 開発役がコミットするたびに、監査役が「読了位置」から HEAD まで（未 commit の変更と、追跡外の新規ファイルを含む）を、読み取りだけで監査します。「問題なし」と判定され、重大な指摘がすべて閉じている（ユーザーの判断待ちは閉じていない扱い）最後のコミットが「合格位置」になります。
-2. 合格位置より後の変更（監査待ち）は、ユーザーの明示の指示がない限り、merge・push・deploy しません。
-3. 交代の合図が出たら、開発役は `HANDOFF.md` を保存して、書き込みを止めます。保存の仕方は、下の「三つの型」のバトンタッチかリリーフかで変わります。
-4. 監査役は、途中の監査を書き出し、まだ監査していない変更を監査します。そのあと開発を受け入れ、開発役として、重大な指摘を最初に直します。
-5. 元の開発役は、枠が戻ったら監査役として戻ります。そのあいだに入ったコミットは、監査待ちのまま待ちます。
+## Quick start
 
-## 三つの型
-
-詳しい手順は [SKILL.md](SKILL.md) にあります。どの型でも、コードの書き手は一人、監査は読み取りだけ、権限は増えません。
-
-| 型 | いつ使うか | 要点 |
-| --- | --- | --- |
-| バトンタッチ（計画された交代） | ユーザーの指示、事前に決めた目安（例：残り20%） | 降りる側は検証済みの区切りで `HANDOFF.md` を完全版にし、状態を `BATON-READY` にする。上がる側は HEAD までの監査を終えてから `ACCEPTED` にする |
-| リリーフ（緊急避難の交代） | 利用上限の警告、コンテキストの限界、予期しない停止 | 降りる側は最小記録だけを保存し、状態を `SWAP-PREPARED（未照合）` にする。上がる側は前任の停止と、途中で止まった処理の安全を確かめてから `ACCEPTED` にする。確かめられなければ受け入れない |
-| デバッグ（監査をさらに進めた段階） | 重大度・高の不具合の原因を特定できないとき、またはユーザーの指示 | ユーザーの許可で調査役を立てる。調査役は書き込まず、再現手順・仮説と証拠・差分案を返す。開発役が `DEBUG.md` に記録し、監査役が指摘を閉じたら終わる |
-
-これらは Markdown の手順です。relay で自動化されているのは、CLI 監査の呼び出し、検証コマンドと外部副作用の記録（verify／effect add）、交代記録（swap／confirm／accept）の機械測定だけです。relay の `swap` は `BATON-READY` と `SWAP-PREPARED` のどちらの状態からも始められます。前任の停止の確認、途中の処理の安全確認、デバッグの編成は自動化していません。
-
-## しないこと
-
-- スキル本体はモデルの起動・切り替え、使用量の監視、自動送信を行いません。任意の relay は、ユーザーの許可で CLI 監査を呼び出します。席の交代はユーザーが開始文を貼って行います。
-- commit・push・本番操作などの権限を増やしません。
-- スキル本体は Markdown だけです。[relay](relay/README.md) は、ユーザーが許可した CLI 監査を呼び出す任意の道具です。
-
-## 構成
+No installation is needed. Tell your agent:
 
 ```text
-b2b-dev/
-├── SKILL.md                  # 手順（エージェントが読む）
-├── templates/
-│   ├── handoff.md            # HANDOFF.md の雛形
-│   ├── audit.md              # AUDIT.md の雛形
-│   ├── debug.md              # DEBUG.md の雛形（デバッグの段階だけ）
-│   └── start-prompts.md      # 開発・監査・交代・デバッグの開始文
-├── references/
-│   ├── coordination.md       # 単発委任・複数監査・実行代行・局所再監査
-│   └── spec-driven-pilot.md  # 仕様駆動の試行（任意）
-├── relay/                    # 任意の CLI 監査の通路
-├── .gitignore                # .b2b/ の状態を公開しない
-├── README.md
-├── README.en.md              # 英語版
-├── CHANGELOG.md
-└── LICENSE
+Read <path to this folder>/SKILL.md and work as the <developer / auditor> of b2b-dev.
 ```
 
-## 導入
+Ready-made prompts for starting development, auditing, each kind of swap, and debugging are in [templates/start-prompts.md](templates/start-prompts.md).
 
-インストールしなくても使えます。エージェントにこう伝えてください。
+## How it works
 
-```text
-<このフォルダ>/SKILL.md を読み、b2b-dev の <開発役／監査役> として作業してください。
-```
+1. After each developer commit, the auditor reviews, read-only, from the *read position* in `AUDIT.md` up to HEAD, including uncommitted changes and untracked new files. The last commit judged "no problems", with every high and medium finding closed, becomes the *passed position*. A finding that waits for the user's decision counts as open.
+2. Changes after the passed position are not merged, pushed, or deployed without the user's explicit instruction.
+3. When a swap is signalled, the developer saves `HANDOFF.md` (as a baton touch or a relief) and stops writing.
+4. The auditor flushes its audit in progress, audits what it has not audited yet, then accepts development and fixes high-severity findings first.
+5. The former developer returns as the auditor once its quota recovers. Commits made in the meantime wait as "awaiting audit".
 
-### ローカルで導入する（Claude Code・Codex）
+Beyond the normal swap, the procedures also cover one-off delegation of a single fix to the auditor with Owner approval, primary and additional auditors, and execution on the developer's behalf. See [references/coordination.md](references/coordination.md).
 
-`SKILL.md` を唯一の手順本文として、両ツールからこのリポジトリへ直接リンクします。コピーや製品名の置換はしません。導入はユーザーが行います。
+## What is automated, and what is not
 
-| ツール | ユーザー単位のリンク | 呼び出し |
+- **The skill itself is Markdown only.** It does not launch or switch models, monitor usage, or send anything. Seats are swapped by the user pasting a start prompt.
+- **The optional [relay](relay/README.md)** (Python 3, no extra packages) automates only these, with the user's permission:
+  - invoking a CLI auditor (`call audit`)
+  - recording verification commands and external side effects (`verify`, `effect add`)
+  - a machine-measured swap record (`swap`, `confirm`, `accept`). `swap` starts from either `BATON-READY` or `SWAP-PREPARED`.
+- **Not automated:** confirming that the previous developer has stopped, checking interrupted operations, and organizing a debugging stage. Agents and the user do these by following SKILL.md.
+- It never widens permissions for commit, push, production operations, and so on.
+
+## Installation (Claude Code and Codex)
+
+Link both tools directly to this repository so that `SKILL.md` is the single source of the procedures. Do not copy it. The user performs the installation.
+
+| Tool | Per-user link | Invocation |
 | --- | --- | --- |
-| Claude Code | `~/.claude/skills/b2b-dev` → このリポジトリ | `/b2b-dev` |
-| Codex | `~/.agents/skills/b2b-dev` → このリポジトリ | `$b2b-dev`（CLI・IDE では `/skills` からも選択可） |
+| Claude Code | `~/.claude/skills/b2b-dev` → this repository | `/b2b-dev` |
+| Codex | `~/.agents/skills/b2b-dev` → this repository | `$b2b-dev` (also selectable from `/skills` in the CLI and IDE) |
 
-両ツールの公式資料で、上記の配置場所とリンクされたスキルフォルダの読み込みを確認しています。[Claude Code Skills](https://code.claude.com/docs/en/skills)、[OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills)（2026-10-01 確認）。Claude のこの配置はローカルの Claude Code 用です。
-
-**同期処理がある場合：** 導入前に `b2b-dev` を、両方のスキル置き場をコピー・置換する処理の対象から外してください。両リンクは独立して原本を指すようにします。リンクだけでは、未知の同期処理によるリンクの置換や、リンク先の本文の書き換えを防げません。除外できたか不明なら、上の「インストールしなくても使う」方法で原本の `SKILL.md` を直接指定してください。同期処理の特定や設定変更は、このスキルの機能に含みません。
-
-リポジトリは恒久的な場所に置いてから導入してください。移動・改名したら、両リンクを新しい絶対パスへ張り直します。既存リンクの削除・張り直しは、リンク先を確認してユーザーが行ってください。以下の導入例は既存リンクを自動修復しません。
-
-次は macOS・Linux のシェルでユーザーが実行する導入例です。先にこのリポジトリのルートへ移動してください。既存の同名フォルダやリンク（リンク切れを含む）があれば、上書きせずに停止します。
+Run this from the repository root (macOS / Linux shell). It stops without overwriting if a folder or link with the same name already exists, including a broken link.
 
 ```sh
 b2b_repo="$(pwd -P)"
 if [ ! -f "$b2b_repo/SKILL.md" ]; then
-  echo "このリポジトリのルートで実行してください。"
+  echo "Run this from the repository root."
 elif [ -e "$HOME/.claude/skills/b2b-dev" ] || [ -L "$HOME/.claude/skills/b2b-dev" ] ||
      [ -e "$HOME/.agents/skills/b2b-dev" ] || [ -L "$HOME/.agents/skills/b2b-dev" ]; then
-  echo "同名の配置があります。リンク先と内容を確認してから導入してください。"
+  echo "An entry with the same name exists. Check its target and contents first."
 else
   mkdir -p "$HOME/.claude/skills" "$HOME/.agents/skills" &&
   ln -s "$b2b_repo" "$HOME/.claude/skills/b2b-dev" &&
@@ -112,42 +81,45 @@ else
 fi
 ```
 
-導入後や同期処理が動いた後は、同じリポジトリのルートで確認します。`test -f` が終了コード0なら本文へ到達でき、リンク切れでは失敗します。`readlink` の出力が両方とも原本の絶対パスかを確認してください。`cmp` はコピーに置き換わった場合の本文の違いを検出します。正常なリンクなら同じファイル同士の比較になるので、原本そのものの改変は検出しません。コピーへの置換自体は `readlink` の失敗で検出します。
+If you run a process that copies or replaces skill folders, exclude `b2b-dev` from it first. Keep the repository in a permanent location; if you move or rename it, re-create both links. The [Japanese README](README.ja.md) describes how to check the links (`test -f`, `readlink`, `cmp`, `git status`).
 
-```sh
-test -f "$HOME/.claude/skills/b2b-dev/SKILL.md"
-test -f "$HOME/.agents/skills/b2b-dev/SKILL.md"
-readlink "$HOME/.claude/skills/b2b-dev"
-readlink "$HOME/.agents/skills/b2b-dev"
-cmp SKILL.md "$HOME/.claude/skills/b2b-dev/SKILL.md"
-cmp SKILL.md "$HOME/.agents/skills/b2b-dev/SKILL.md"
-git --no-optional-locks status --short
+Then open the target project and invoke `/b2b-dev` in Claude Code or `$b2b-dev` in Codex, giving the seat, goal, completion criteria, and branch.
+
+## Example: Claude Code develops, Codex audits
+
+1. Paste "start development" into Claude Code and "start auditing" into Codex.
+2. When you decide to swap, paste "prepare a baton touch" into Claude Code. If a usage-limit warning or the context limit forces a hurry, paste "prepare a relief" instead.
+3. Paste the matching "take over development" into Codex.
+4. When Claude Code's quota recovers, paste "return to the auditor seat".
+5. If a serious defect with an unknown cause remains, paste "request a debugging investigation" into an investigator you have authorized.
+
+## Layout
+
+```text
+b2b-dev/
+├── SKILL.md                  # procedures (read by agents)
+├── templates/
+│   ├── handoff.md            # template for HANDOFF.md
+│   ├── audit.md              # template for AUDIT.md
+│   ├── debug.md              # template for DEBUG.md (debugging stage only)
+│   └── start-prompts.md      # start prompts for development, audit, swaps, debugging
+├── references/
+│   ├── coordination.md       # one-off delegation, multiple auditors, execution on behalf, local re-audit
+│   └── spec-driven-pilot.md  # optional spec-driven pilot
+├── relay/                    # optional CLI audit channel
+├── .gitignore                # keeps .b2b/ state out of the repository
+├── README.md                 # this file (English)
+├── README.ja.md              # Japanese
+├── CHANGELOG.md
+└── LICENSE
 ```
 
-最後の状態確認は、原本・templates・追跡外ファイルを含むリポジトリ全体の変更を見るためです。意図しない変更があれば、その状態で使わず、原本と同期設定を確認してください。
+SKILL.md, the templates, and the references are written in Japanese. If this README and the Japanese documents disagree, the [Japanese README](README.ja.md) and SKILL.md are authoritative.
 
-### 呼び出す
+## Origin
 
-作業対象のプロジェクトを開き、Claude Code では `/b2b-dev`、Codex では `$b2b-dev` に、席・目的・完成条件・branch を添えて呼び出します。具体的な入力文は [templates/start-prompts.md](templates/start-prompts.md) を使ってください。Codex の画面で選択方法が異なる場合は、スキル一覧から選ぶか、原本の `SKILL.md` の絶対パスを指定して読み込ませます。
+The skill was rebuilt from an earlier skill that only handled handing over the lead role. The rebuild itself was done B2B-style, with Claude developing and Codex auditing.
 
-新しいセッションでスキルが見えることを確認してください。Codex は変更を自動検出しますが、現れなければ再起動します。同じ名前のコピーがほかにもある場合は、どの原本を読んだかを確認します。リンクと本文の一致は、実際の呼び出し成功とは別の確認です。
+## License
 
-### Codex 用ファイルの判断
-
-Codex の必須ファイルは、`name`・`description` を持つ `SKILL.md` です。既存の本文がこの条件を満たします。`agents/openai.yaml` は表示・呼び出し方針・ツール依存を設定する任意ファイルで、今回は追加しません。このスキルには専用の表示素材や外部ツール依存がなく、上記の明示呼び出しで使えるためです。Claude 用と Codex 用に本文を分ける必要もありません。[仕様の根拠](https://learn.chatgpt.com/docs/build-skills)
-
-## 使い方（例：Claude Code が開発、Codex が監査）
-
-1. Claude Code に「開発を始める」、Codex に「監査を始める」の[開始文](templates/start-prompts.md)を貼ります。
-2. 交代を決めたら、Claude Code に「バトンタッチの準備」を貼ります。上限の警告やコンテキストの限界で急ぐときは「リリーフの準備」を貼ります。
-3. Codex に、同じ型の「開発を引き継ぐ」を貼ります。
-4. Claude Code の枠が戻ったら、「監査席に着く」を貼ります。
-5. 原因のわからない重大な不具合が残ったら、許可した調査役に「デバッグの調査を依頼する」を貼ります。
-
-## 由来
-
-このスキルは、主任の交代だけを扱っていた前身のスキルを作り替えたものです。作り替えの作業そのものも、B2B 方式（Claude が開発、Codex が監査）で行いました。
-
-## ライセンス / License
-
-[MIT License](LICENSE) です。著作権表示と許諾文を保持すれば、誰でも無料で使用・複製・改変・再配布できます。
+[MIT](LICENSE)

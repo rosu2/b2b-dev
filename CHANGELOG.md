@@ -18,7 +18,7 @@
 ### Added
 
 - `templates/debug.md`（`DEBUG.md` の雛形）。
-- `README.en.md`（英語版 README）。日本語 README の冒頭からリンクしています。
+- 英語版 README。GitHub で最初に表示される `README.md` を英語にし、日本語版は `README.ja.md` に移しました。互いの冒頭からリンクしています。
 - この `CHANGELOG.md`。
 
 ### 取り込んだ未監査の作業
