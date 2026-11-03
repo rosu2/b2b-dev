@@ -2,6 +2,8 @@
 
 **2つのコーディングエージェントが「開発」と「監査」の席を交代しながら進める開発方式のスキルです。**（スキル名：`b2b-dev`）
 
+通常の交代に加え、Owner承認のもとで監査担当へ一つの修復だけを委ねる単発委任、Argon（Gemini）等を加えた主任・追加監査、監査担当による実行代行を扱います。既存の担当会話を継続し、コードの書き手は一人、実行成功と独立受入は別という境界を保ちます。詳しくは [coordination.md](references/coordination.md)、依頼文は [開始文](templates/start-prompts.md) を参照してください。これらは手順の追加であり、relayへの自動実行機能追加ではありません。
+
 B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出しているあいだ、もう片方はヘッドホンで聴いて次に備えます。
 
 ```text
@@ -43,6 +45,8 @@ b2b-dev/
 │   ├── handoff.md            # HANDOFF.md の雛形
 │   ├── audit.md              # AUDIT.md の雛形
 │   └── start-prompts.md      # 開発・監査・交代の開始文
+├── references/
+│   └── coordination.md      # 単発委任・複数監査・実行代行・局所再監査
 ├── relay/                    # 任意の CLI 監査の通路
 ├── .gitignore                # .b2b/ の状態を公開しない
 ├── README.md
