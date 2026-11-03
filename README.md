@@ -1,8 +1,10 @@
 # B2B — Back-to-Back Development
 
-**2つのコーディングエージェントが「開発」と「監査」の席を交代しながら進める開発方式のスキルです。**（スキル名：`b2b-dev`）
+> **English: [README.en.md](README.en.md)** — the English version of this README.
 
-[English](README.en.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**2つのコーディングエージェントが「開発」と「監査」の席を交代しながら進める開発方式のスキルです。**（スキル名：`b2b-dev`）
 
 通常の交代に加え、Owner承認のもとで監査担当へ一つの修復だけを委ねる単発委任、Argon（Gemini）等を加えた主任・追加監査、監査担当による実行代行を扱います。既存の担当会話を継続し、コードの書き手は一人、実行成功と独立受入は別という境界を保ちます。詳しくは [coordination.md](references/coordination.md)、依頼文は [開始文](templates/start-prompts.md) を参照してください。これらは手順の追加であり、relayへの自動実行機能追加ではありません。
 
@@ -144,7 +146,7 @@ Codex の必須ファイルは、`name`・`description` を持つ `SKILL.md` で
 
 ## 由来
 
-このスキルは、前身の foreman-handoff（主任の交代だけを扱うスキル）を作り替えたものです。作り替えの作業そのものも、B2B 方式（Claude が開発、Codex が監査）で行いました。
+このスキルは、主任の交代だけを扱っていた前身のスキルを作り替えたものです。作り替えの作業そのものも、B2B 方式（Claude が開発、Codex が監査）で行いました。
 
 ## ライセンス / License
 
