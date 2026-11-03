@@ -2,7 +2,7 @@
 
 この形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に倣います。版は [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
-## [0.1.0] - 未リリース（tag は未作成）
+## [0.1.0] - 2026-11-03
 
 ### Changed
 
