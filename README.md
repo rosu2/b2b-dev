@@ -2,6 +2,8 @@
 
 **2つのコーディングエージェントが「開発」と「監査」の席を交代しながら進める開発方式のスキルです。**（スキル名：`b2b-dev`）
 
+[English](README.en.md)
+
 通常の交代に加え、Owner承認のもとで監査担当へ一つの修復だけを委ねる単発委任、Argon（Gemini）等を加えた主任・追加監査、監査担当による実行代行を扱います。既存の担当会話を継続し、コードの書き手は一人、実行成功と独立受入は別という境界を保ちます。詳しくは [coordination.md](references/coordination.md)、依頼文は [開始文](templates/start-prompts.md) を参照してください。これらは手順の追加であり、relayへの自動実行機能追加ではありません。
 
 B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出しているあいだ、もう片方はヘッドホンで聴いて次に備えます。
@@ -26,9 +28,21 @@ B2B は、二人の DJ が交互に回す DJ 用語です。片方が音を出�
 
 1. 開発役がコミットするたびに、監査役が「読了位置」から HEAD まで（未 commit の変更と、追跡外の新規ファイルを含む）を、読み取りだけで監査します。「問題なし」と判定され、重大な指摘がすべて閉じている（ユーザーの判断待ちは閉じていない扱い）最後のコミットが「合格位置」になります。
 2. 合格位置より後の変更（監査待ち）は、ユーザーの明示の指示がない限り、merge・push・deploy しません。
-3. 交代の合図（ユーザーの指示、事前に決めた目安、上限の警告、コンテキストの限界）が出たら、開発役は `HANDOFF.md` の冒頭に最小限を保存して、書き込みを止めます。
+3. 交代の合図が出たら、開発役は `HANDOFF.md` を保存して、書き込みを止めます。保存の仕方は、下の「三つの型」のバトンタッチかリリーフかで変わります。
 4. 監査役は、途中の監査を書き出し、まだ監査していない変更を監査します。そのあと開発を受け入れ、開発役として、重大な指摘を最初に直します。
 5. 元の開発役は、枠が戻ったら監査役として戻ります。そのあいだに入ったコミットは、監査待ちのまま待ちます。
+
+## 三つの型
+
+詳しい手順は [SKILL.md](SKILL.md) にあります。どの型でも、コードの書き手は一人、監査は読み取りだけ、権限は増えません。
+
+| 型 | いつ使うか | 要点 |
+| --- | --- | --- |
+| バトンタッチ（計画された交代） | ユーザーの指示、事前に決めた目安（例：残り20%） | 降りる側は検証済みの区切りで `HANDOFF.md` を完全版にし、状態を `BATON-READY` にする。上がる側は HEAD までの監査を終えてから `ACCEPTED` にする |
+| リリーフ（緊急避難の交代） | 利用上限の警告、コンテキストの限界、予期しない停止 | 降りる側は最小記録だけを保存し、状態を `SWAP-PREPARED（未照合）` にする。上がる側は前任の停止と、途中で止まった処理の安全を確かめてから `ACCEPTED` にする。確かめられなければ受け入れない |
+| デバッグ（監査をさらに進めた段階） | 重大度・高の不具合の原因を特定できないとき、またはユーザーの指示 | ユーザーの許可で調査役を立てる。調査役は書き込まず、再現手順・仮説と証拠・差分案を返す。開発役が `DEBUG.md` に記録し、監査役が指摘を閉じたら終わる |
+
+これらは Markdown の手順です。relay で自動化されているのは、CLI 監査の呼び出し、検証コマンドと外部副作用の記録（verify／effect add）、交代記録（swap／confirm／accept）の機械測定だけです。relay の `swap` は `BATON-READY` と `SWAP-PREPARED` のどちらの状態からも始められます。前任の停止の確認、途中の処理の安全確認、デバッグの編成は自動化していません。
 
 ## しないこと
 
@@ -44,12 +58,16 @@ b2b-dev/
 ├── templates/
 │   ├── handoff.md            # HANDOFF.md の雛形
 │   ├── audit.md              # AUDIT.md の雛形
-│   └── start-prompts.md      # 開発・監査・交代の開始文
+│   ├── debug.md              # DEBUG.md の雛形（デバッグの段階だけ）
+│   └── start-prompts.md      # 開発・監査・交代・デバッグの開始文
 ├── references/
-│   └── coordination.md      # 単発委任・複数監査・実行代行・局所再監査
+│   ├── coordination.md       # 単発委任・複数監査・実行代行・局所再監査
+│   └── spec-driven-pilot.md  # 仕様駆動の試行（任意）
 ├── relay/                    # 任意の CLI 監査の通路
 ├── .gitignore                # .b2b/ の状態を公開しない
 ├── README.md
+├── README.en.md              # 英語版
+├── CHANGELOG.md
 └── LICENSE
 ```
 
@@ -119,17 +137,14 @@ Codex の必須ファイルは、`name`・`description` を持つ `SKILL.md` で
 ## 使い方（例：Claude Code が開発、Codex が監査）
 
 1. Claude Code に「開発を始める」、Codex に「監査を始める」の[開始文](templates/start-prompts.md)を貼ります。
-2. Claude Code の枠が危なくなったら、「交代の準備」を貼ります。
-3. Codex に「開発を引き継ぐ」を貼ります。
+2. 交代を決めたら、Claude Code に「バトンタッチの準備」を貼ります。上限の警告やコンテキストの限界で急ぐときは「リリーフの準備」を貼ります。
+3. Codex に、同じ型の「開発を引き継ぐ」を貼ります。
 4. Claude Code の枠が戻ったら、「監査席に着く」を貼ります。
+5. 原因のわからない重大な不具合が残ったら、許可した調査役に「デバッグの調査を依頼する」を貼ります。
 
 ## 由来
 
 このスキルは、前身の foreman-handoff（主任の交代だけを扱うスキル）を作り替えたものです。作り替えの作業そのものも、B2B 方式（Claude が開発、Codex が監査）で行いました。
-
-## English summary
-
-B2B (back-to-back, as in two DJs alternating) is a Markdown-only skill for two coding agents that take turns as developer and auditor. The developer is the only writer of code and keeps `HANDOFF.md` current. The auditor reviews read-only, from the last read commit up to HEAD, including uncommitted diffs, and writes only `AUDIT.md`. It records a *read* position and a separate *passed* position. Changes beyond the passed position are not merged, pushed, or deployed without the user's explicit instruction. When the developer's usage or context runs low, it saves a short state record and stops writing. The auditor then flushes its audit, audits any remaining commits, and takes over development. The former developer returns as the auditor once its quota recovers. Memory lives in the two files, not in any model's context. The skill instructions never launch models, monitor usage, or widen permissions. The optional relay can invoke a CLI auditor with user authorization; it returns an audit through AUDIT.md.
 
 ## ライセンス / License
 
